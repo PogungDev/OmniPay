@@ -236,7 +236,7 @@ export const SUPPORTED_CHAINS: Record<number, ChainConfig> = {
     id: 11155111,
     name: "Sepolia",
     symbol: "ETH",
-    rpcUrl: "https://sepolia.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161",
+    rpcUrl: "https://rpc.sepolia.org",
     explorerUrl: "https://sepolia.etherscan.io",
     logoUrl: "/chains/ethereum.svg",
     nativeToken: {
@@ -249,6 +249,29 @@ export const SUPPORTED_CHAINS: Record<number, ChainConfig> = {
         symbol: "USDC",
         name: "USD Coin",
         address: "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238",
+        decimals: 6,
+        logoUrl: "/tokens/usdc.svg",
+        coingeckoId: "usd-coin",
+      },
+    ],
+  },
+  421614: {
+    id: 421614,
+    name: "Arbitrum Sepolia",
+    symbol: "ETH",
+    rpcUrl: "https://sepolia-rollup.arbitrum.io/rpc",
+    explorerUrl: "https://sepolia.arbiscan.io",
+    logoUrl: "/chains/arbitrum.svg",
+    nativeToken: {
+      symbol: "ETH",
+      name: "Ethereum",
+      decimals: 18,
+    },
+    supportedTokens: [
+      {
+        symbol: "USDC",
+        name: "USD Coin",
+        address: "0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d",
         decimals: 6,
         logoUrl: "/tokens/usdc.svg",
         coingeckoId: "usd-coin",

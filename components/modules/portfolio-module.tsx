@@ -27,7 +27,7 @@ interface ChainData {
 }
 
 export default function PortfolioModule() {
-  const { account, isConnected, isDummy } = useWallet()
+  const { address, isConnected, isDummy } = useWallet()
   const [isRefreshing, setIsRefreshing] = useState(false)
 
   // Mock portfolio data

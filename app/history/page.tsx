@@ -1,267 +1,270 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
+import { useState, useMemo } from "react"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { ArrowLeft, Search, ExternalLink, Clock, CheckCircle, XCircle } from "lucide-react"
-import Link from "next/link"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { ExternalLink, Search } from "lucide-react"
 import { useWallet } from "@/components/wallet-provider"
-import type { Transaction } from "@/types/payment"
-import { SUPPORTED_CHAINS } from "@/config/chains"
+import { Transaction, TransactionStatus, TransactionType } from "@/types/payment"
+
+const SUPPORTED_CHAINS: Record<number, { name: string; explorer: string }> = {
+  1: { name: "Ethereum", explorer: "https://etherscan.io" },
+  137: { name: "Polygon", explorer: "https://polygonscan.com" },
+  42161: { name: "Arbitrum", explorer: "https://arbiscan.io" },
+  10: { name: "Optimism", explorer: "https://optimistic.etherscan.io" },
+  8453: { name: "Base", explorer: "https://basescan.org" },
+  11155111: { name: "Sepolia", explorer: "https://sepolia.etherscan.io" },
+  421614: { name: "Arbitrum Sepolia", explorer: "https://sepolia.arbiscan.io" },
+}
 
 export default function HistoryPage() {
-  const { account, isConnected, isDummy } = useWallet() // Get isDummy
-  const [transactions, setTransactions] = useState<Transaction[]>([])
+  const { address, isConnected, isDummy } = useWallet()
   const [searchTerm, setSearchTerm] = useState("")
-  const [isLoading, setIsLoading] = useState(true)
 
-  // Mock transaction data
+  // Mock transaction data for demo/testing
   const mockTransactions: Transaction[] = [
     {
       id: "tx_1",
-      hash: "0x1234567890abcdef1234567890abcdef12345678",
-      status: "success",
-      fromToken: "ETH",
-      fromChain: 1,
-      toChain: 137,
-      amount: "0.5",
-      usdcAmount: "1000.00",
-      recipient: "0x742d35Cc6634C0532925a3b8D4C2C4e4C4C4C4C4",
-      timestamp: Date.now() - 3600000, // 1 hour ago
-      gasUsed: "0.025",
-      explorerUrl: "https://etherscan.io/tx/0x1234567890abcdef1234567890abcdef12345678",
+      hash: "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+      from: address || "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b7",
+      to: "0x9876543210fedcba9876543210fedcba9876543210fedcba9876543210fedcba",
+      value: 250,
+      token: "USDC",
+      chainId: 11155111,
+      status: TransactionStatus.CONFIRMED,
+      timestamp: new Date(Date.now() - 3600000), // 1 hour ago
+      type: TransactionType.SEND,
+      blockNumber: 12345678,
+      gasUsed: 0.025,
     },
     {
       id: "tx_2",
-      hash: "0xabcdef1234567890abcdef1234567890abcdef12",
-      status: "pending",
-      fromToken: "MATIC",
-      fromChain: 137,
-      toChain: 42161,
-      amount: "2000",
-      usdcAmount: "1500.00",
-      recipient: "0x853d45Cc6634C0532925a3b8D4C2C4e4C4C4C4C4",
-      timestamp: Date.now() - 300000, // 5 minutes ago
-      explorerUrl: "https://polygonscan.com/tx/0xabcdef1234567890abcdef1234567890abcdef12",
+      hash: "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+      from: address || "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b7",
+      to: "0x5555666677778888999900001111222233334444555566667777888899990000",
+      value: 0.1,
+      token: "ETH",
+      chainId: 11155111,
+      status: TransactionStatus.PENDING,
+      timestamp: new Date(Date.now() - 300000), // 5 minutes ago
+      type: TransactionType.BRIDGE,
     },
     {
       id: "tx_3",
-      hash: "0x9876543210fedcba9876543210fedcba98765432",
-      status: "failed",
-      fromToken: "WBTC",
-      fromChain: 1,
-      toChain: 10,
-      amount: "0.05",
-      usdcAmount: "2000.00",
-      recipient: "0x964d46Cc6634C0532925a3b8D4C2C4e4C4C4C4C4",
-      timestamp: Date.now() - 7200000, // 2 hours ago
-      explorerUrl: "https://etherscan.io/tx/0x9876543210fedcba9876543210fedcba98765432",
+      hash: "0x9999888877776666555544443333222211110000ffffeeeedddcccbbbaaa9999",
+      from: "0x1111222233334444555566667777888899990000aaaabbbbccccddddeeeefffff",
+      to: address || "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b7",
+      value: 500,
+      token: "USDC",
+      chainId: 421614,
+      status: TransactionStatus.FAILED,
+      timestamp: new Date(Date.now() - 7200000), // 2 hours ago
+      type: TransactionType.RECEIVE,
     },
     {
       id: "tx_4",
-      hash: "0xdeadbeef1234567890abcdef1234567890abcdef",
-      status: "success",
-      fromToken: "ETH",
-      fromChain: 11155111, // Sepolia
-      toChain: 137, // Polygon
-      amount: "0.1",
-      usdcAmount: "200.00",
-      recipient: "0xDemoRecipientAddress1234567890abcdef",
-      timestamp: Date.now() - 120000, // 2 minutes ago
-      gasUsed: "0.005",
-      explorerUrl: "https://sepolia.etherscan.io/tx/0xdeadbeef1234567890abcdef1234567890abcdef",
+      hash: "0x7777666655554444333322221111000099998888aaaabbbbccccddddeeeeffff",
+      from: address || "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b7",
+      to: "0x2222333344445555666677778888999900001111aaaabbbbccccddddeeeeffff",
+      value: 1000,
+      token: "USDC",
+      chainId: 137,
+      status: TransactionStatus.CONFIRMED,
+      timestamp: new Date(Date.now() - 120000), // 2 minutes ago
+      type: TransactionType.SWAP,
+      blockNumber: 87654321,
+      gasUsed: 0.005,
     },
   ]
 
-  useEffect(() => {
-    // Simulate loading
-    setTimeout(() => {
-      setTransactions(mockTransactions)
-      setIsLoading(false)
-    }, 1000)
-  }, [])
+  // Filter transactions based on search term
+  const filteredTransactions = useMemo(() => {
+    if (!searchTerm.trim()) return mockTransactions
 
-  const filteredTransactions = transactions.filter(
-    (tx) =>
-      tx.hash?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      tx.recipient.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      tx.fromToken.toLowerCase().includes(searchTerm.toLowerCase()),
-  )
+    return mockTransactions.filter(
+      (tx) =>
+        tx.hash.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        tx.to.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        tx.token.toLowerCase().includes(searchTerm.toLowerCase())
+    )
+  }, [mockTransactions, searchTerm])
 
-  const getStatusIcon = (status: Transaction["status"]) => {
+  const getStatusIcon = (status: TransactionStatus) => {
     switch (status) {
-      case "success":
-        return <CheckCircle className="w-5 h-5 text-green-600" />
-      case "pending":
-        return <Clock className="w-5 h-5 text-yellow-600 animate-pulse" />
-      case "failed":
-        return <XCircle className="w-5 h-5 text-red-600" />
+      case TransactionStatus.CONFIRMED:
+        return "✅"
+      case TransactionStatus.PENDING:
+        return "⏳"
+      case TransactionStatus.FAILED:
+        return "❌"
+      default:
+        return "⏳"
     }
   }
 
-  const getStatusBadge = (status: Transaction["status"]) => {
+  const getStatusColor = (status: TransactionStatus): string => {
     const variants = {
-      success: "default",
-      pending: "secondary",
-      failed: "destructive",
+      [TransactionStatus.CONFIRMED]: "default",
+      [TransactionStatus.PENDING]: "secondary",
+      [TransactionStatus.FAILED]: "destructive",
     } as const
 
-    return (
-      <Badge variant={variants[status]} className="capitalize">
-        {status}
-      </Badge>
-    )
+    return variants[status]
   }
 
-  const formatTime = (timestamp: number) => {
-    const now = Date.now()
-    const diff = now - timestamp
-    const minutes = Math.floor(diff / 60000)
-    const hours = Math.floor(diff / 3600000)
-    const days = Math.floor(diff / 86400000)
+  const formatTime = (timestamp: number | Date): string => {
+    const date = typeof timestamp === 'number' ? new Date(timestamp) : timestamp
+    const now = new Date()
+    const diffMs = now.getTime() - date.getTime()
+    const diffMins = Math.floor(diffMs / 60000)
+    const diffHours = Math.floor(diffMins / 60)
+    const diffDays = Math.floor(diffHours / 24)
 
-    if (days > 0) return `${days}d ago`
-    if (hours > 0) return `${hours}h ago`
-    if (minutes > 0) return `${minutes}m ago`
-    return "Just now"
+    if (diffMins < 1) return "Just now"
+    if (diffMins < 60) return `${diffMins}m ago`
+    if (diffHours < 24) return `${diffHours}h ago`
+    return `${diffDays}d ago`
+  }
+
+  const getExplorerUrl = (hash: string, chainId: number): string => {
+    const chain = SUPPORTED_CHAINS[chainId]
+    return chain ? `${chain.explorer}/tx/${hash}` : ""
   }
 
   if (!isConnected) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4">
-        <Card className="w-full max-w-md">
-          <CardContent className="p-6 text-center">
-            <h2 className="text-2xl font-bold mb-2">Connect Wallet</h2>
-            <p className="text-gray-600 mb-6">Connect your wallet to view transaction history</p>
-            <Button asChild>
-              <Link href="/">Go Back</Link>
-            </Button>
-          </CardContent>
-        </Card>
+      <div className="container mx-auto px-4 py-8">
+        <div className="max-w-2xl mx-auto text-center">
+          <h1 className="text-3xl font-bold mb-4">Transaction History</h1>
+          <p className="text-gray-600 mb-8">
+            Connect your wallet to view your transaction history
+          </p>
+          <Button>Connect Wallet</Button>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen p-4">
-      <div className="container mx-auto max-w-4xl">
-        {/* Header */}
+    <div className="container mx-auto px-4 py-8">
+      <div className="max-w-4xl mx-auto">
         <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center space-x-4">
-            <Button variant="ghost" size="sm" asChild>
-              <Link href="/">
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Back
-              </Link>
-            </Button>
-            <div>
-              <h1 className="text-2xl font-bold">Transaction History</h1>
-              <p className="text-gray-600">Track your cross-chain payments</p>
-            </div>
-          </div>
-          <Badge variant="secondary">
-            Connected: {account?.slice(0, 6)}...{account?.slice(-4)}
-            {isDummy && <span className="ml-1 text-yellow-500">(Demo)</span>}
-          </Badge>
+          <h1 className="text-3xl font-bold">Transaction History</h1>
+          {isDummy && (
+            <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
+              Demo Mode
+            </Badge>
+          )}
         </div>
 
-        {/* Search */}
-        <Card className="mb-6">
-          <CardContent className="p-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-              <Input
-                placeholder="Search by hash, recipient, or token..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-          </CardContent>
-        </Card>
+        {/* Search Bar */}
+        <div className="relative mb-6">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <Input
+            placeholder="Search by hash, address, or token..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-10"
+          />
+        </div>
 
-        {/* Transactions */}
+        {/* Transaction Summary */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-gray-600">Total Transactions</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{filteredTransactions.length}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-gray-600">Successful</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-green-600">
+                {filteredTransactions.filter(tx => tx.status === TransactionStatus.CONFIRMED).length}
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-gray-600">Failed</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-red-600">
+                {filteredTransactions.filter(tx => tx.status === TransactionStatus.FAILED).length}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Transaction List */}
         <div className="space-y-4">
-          {isLoading ? (
-            <div className="space-y-4">
-              {[1, 2, 3].map((i) => (
-                <Card key={i}>
-                  <CardContent className="p-6">
-                    <div className="animate-pulse">
-                      <div className="h-4 bg-gray-200 rounded w-1/4 mb-2"></div>
-                      <div className="h-3 bg-gray-200 rounded w-1/2 mb-4"></div>
-                      <div className="h-3 bg-gray-200 rounded w-3/4"></div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          ) : filteredTransactions.length === 0 ? (
+          {filteredTransactions.length === 0 ? (
             <Card>
-              <CardContent className="p-12 text-center">
-                <div className="text-gray-400 mb-4">
-                  <Clock className="w-12 h-12 mx-auto" />
-                </div>
-                <h3 className="text-lg font-semibold mb-2">No transactions found</h3>
-                <p className="text-gray-600 mb-6">
-                  {searchTerm ? "Try adjusting your search terms" : "Start by sending your first payment"}
-                </p>
-                <Button asChild>
-                  <Link href="/send">Send First Payment</Link>
-                </Button>
+              <CardContent className="py-8 text-center text-gray-500">
+                No transactions found matching your search.
               </CardContent>
             </Card>
           ) : (
             filteredTransactions.map((tx) => (
-              <Card key={tx.id} className="hover:shadow-md transition-shadow">
+              <Card key={tx.id} className="hover:shadow-lg transition-shadow">
                 <CardContent className="p-6">
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex items-center space-x-3">
-                      {getStatusIcon(tx.status)}
-                      <div>
-                        <div className="font-semibold">
-                          {tx.amount} {tx.fromToken} → {tx.usdcAmount} USDC
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-2">
+                        <span className="text-2xl">{getStatusIcon(tx.status)}</span>
+                        <div>
+                          <h3 className="font-semibold text-lg">
+                            {tx.value} {tx.token}
+                          </h3>
+                          <div className="text-sm text-gray-500">
+                            {SUPPORTED_CHAINS[tx.chainId]?.name || `Chain ${tx.chainId}`}
+                          </div>
                         </div>
-                        <div className="text-sm text-gray-600">
-                          {SUPPORTED_CHAINS[tx.fromChain]?.name} → {SUPPORTED_CHAINS[tx.toChain]?.name}
+                        <Badge variant={getStatusColor(tx.status) as any} className="capitalize">
+                          {tx.status}
+                        </Badge>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <div className="text-gray-500 mb-1">Transaction Hash</div>
+                          <div className="font-mono">
+                            {tx.hash.slice(0, 10)}...{tx.hash.slice(-10)}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-gray-500 mb-1">Time</div>
+                          <div className="text-sm text-gray-500 mt-1">{formatTime(tx.timestamp)}</div>
+                        </div>
+                        <div>
+                          <div className="text-gray-500 mb-1">To Address</div>
+                          <div className="font-mono">
+                            {tx.to.slice(0, 6)}...{tx.to.slice(-4)}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-gray-500 mb-1">Type</div>
+                          <div className="capitalize">{tx.type}</div>
                         </div>
                       </div>
                     </div>
-                    <div className="text-right">
-                      {getStatusBadge(tx.status)}
-                      <div className="text-sm text-gray-500 mt-1">{formatTime(tx.timestamp)}</div>
+
+                    <div className="ml-4">
+                      {getExplorerUrl(tx.hash, tx.chainId) && (
+                        <Button variant="outline" size="sm" asChild>
+                          <a href={getExplorerUrl(tx.hash, tx.chainId)} target="_blank" rel="noopener noreferrer">
+                            <ExternalLink className="h-4 w-4" />
+                          </a>
+                        </Button>
+                      )}
                     </div>
                   </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <div className="text-gray-600">Recipient</div>
-                      <div className="font-mono">
-                        {tx.recipient.slice(0, 6)}...{tx.recipient.slice(-4)}
-                      </div>
-                    </div>
-                    {tx.hash && (
-                      <div>
-                        <div className="text-gray-600">Transaction Hash</div>
-                        <div className="font-mono">
-                          {tx.hash.slice(0, 6)}...{tx.hash.slice(-4)}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {tx.explorerUrl && (
-                    <div className="mt-4 pt-4 border-t">
-                      <Button variant="outline" size="sm" asChild>
-                        <a href={tx.explorerUrl} target="_blank" rel="noopener noreferrer">
-                          <ExternalLink className="w-4 h-4 mr-2" />
-                          View on Explorer
-                        </a>
-                      </Button>
-                    </div>
-                  )}
                 </CardContent>
               </Card>
             ))

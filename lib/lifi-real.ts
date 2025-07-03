@@ -264,7 +264,7 @@ class OmniPayLiFiSDK {
     let totalDuration = 0
     
     for (const step of steps) {
-      if (step.type === 'cross') {
+      if (step.type === 'lifi' || step.action?.fromChainId !== step.action?.toChainId) {
         // Cross-chain steps take longer
         totalDuration += 300 // 5 minutes base
         
@@ -279,6 +279,106 @@ class OmniPayLiFiSDK {
     }
     
     return Math.max(totalDuration, 60) // Minimum 1 minute
+  }
+
+  async executeRoute(
+    signer: any, 
+    route: Route, 
+    options?: {
+      updateCallback?: (status: any) => void
+      gasPrice?: string
+      gasLimit?: string
+    }
+  ): Promise<{ txHash: string; status: string }> {
+    if (!this.initialized) {
+      throw new Error('LI.FI SDK not initialized')
+    }
+
+    try {
+      console.log('🚀 Executing LI.FI route...')
+      
+      // Execute first step of the route
+      const firstStep = route.steps[0]
+      if (!firstStep) {
+        throw new Error('No steps found in route')
+      }
+
+      const transactionRequest = firstStep.transactionRequest
+      if (!transactionRequest) {
+        throw new Error('No transaction request found in step')
+      }
+
+      // Execute the transaction
+      const txResponse = await signer.sendTransaction({
+        to: transactionRequest.to,
+        value: transactionRequest.value || '0',
+        data: transactionRequest.data,
+        gasLimit: options?.gasLimit || transactionRequest.gasLimit,
+        gasPrice: options?.gasPrice || transactionRequest.gasPrice,
+      })
+
+      console.log('✅ Transaction sent:', txResponse.hash)
+
+      // Monitor transaction status
+      if (options?.updateCallback) {
+        this.monitorTransactionStatus(
+          route.fromChainId,
+          route.toChainId,
+          txResponse.hash,
+          options.updateCallback
+        )
+      }
+
+      return {
+        txHash: txResponse.hash,
+        status: 'PENDING'
+      }
+    } catch (error) {
+      console.error('❌ Route execution failed:', error)
+      throw error
+    }
+  }
+
+  private async monitorTransactionStatus(
+    fromChain: number,
+    toChain: number,
+    txHash: string,
+    callback: (status: any) => void
+  ): Promise<void> {
+    let attempts = 0
+    const maxAttempts = 60 // Monitor for 5 minutes (5 second intervals)
+
+    const checkStatus = async () => {
+      try {
+        const status = await this.getTransferStatus({
+          fromChain,
+          toChain,
+          txHash,
+        })
+
+        callback({
+          status: status.status,
+          txHash: status.txHash,
+          bridgeTxHash: status.bridgeTxHash,
+          errorMessage: status.status === 'FAILED' ? 'Transaction failed' : undefined
+        })
+
+        // Continue monitoring if still pending
+        if (status.status === 'PENDING' && attempts < maxAttempts) {
+          attempts++
+          setTimeout(checkStatus, 5000) // Check every 5 seconds
+        }
+      } catch (error) {
+        console.error('Status check failed:', error)
+        if (attempts < maxAttempts) {
+          attempts++
+          setTimeout(checkStatus, 5000)
+        }
+      }
+    }
+
+    // Start monitoring after a short delay
+    setTimeout(checkStatus, 2000)
   }
 
   getConfig(): LiFiConfig {

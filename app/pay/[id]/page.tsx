@@ -22,7 +22,7 @@ interface CheckoutPageProps {
 }
 
 export default function CheckoutPage({ params }: CheckoutPageProps) {
-  const { account, chainId, isConnected, isDummy } = useWallet()
+  const { address, chainId, isConnected, isDummy } = useWallet()
   const { toast } = useToast()
   const router = useRouter()
 
@@ -41,7 +41,7 @@ export default function CheckoutPage({ params }: CheckoutPageProps) {
   const [isPaying, setIsPaying] = useState(false)
 
   const handlePayment = async () => {
-    if (!account || !fromToken) {
+    if (!address || !fromToken) {
       toast({
         title: "Error",
         description: "Please connect wallet and select token",
@@ -106,7 +106,7 @@ export default function CheckoutPage({ params }: CheckoutPageProps) {
               <Shield className="w-16 h-16 text-blue-400 mx-auto mb-6" />
               <h2 className="text-3xl font-bold mb-4 text-white">🛍️ Secure Checkout</h2>
               <p className="text-white/70 mb-8">Connect your wallet to complete payment</p>
-              <WalletConnect size="lg" className="w-full" />
+              <WalletConnect />
             </CardContent>
           </Card>
         ) : (

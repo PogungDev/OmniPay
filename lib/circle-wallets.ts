@@ -51,7 +51,7 @@ export interface CircleTransaction {
 }
 
 class OmniPayCircleWallets {
-  private sdk: W3SSdk | null = null
+  private sdk: typeof W3SSdk | null = null
   private initialized = false
   private userToken: string | null = null
 
@@ -302,7 +302,7 @@ class OmniPayCircleWallets {
     return this.userToken !== null
   }
 
-  getSDK(): W3SSdk | null {
+  getSDK(): typeof W3SSdk | null {
     return this.sdk
   }
 }

@@ -4,6 +4,7 @@ import React, { createContext, useContext, useState, useEffect, type ReactNode }
 import { toast } from "@/hooks/use-toast"
 import { metaMaskSDK } from "@/lib/metamask-sdk"
 import { circleWallets } from "@/lib/circle-wallets"
+import { ethers } from "ethers"
 
 interface WalletState {
   address: string | null
@@ -20,15 +21,19 @@ interface WalletContextType {
   disconnectWallet: () => void
   switchChain: (chainId: string) => Promise<void>
   sendTransaction: (to: string, value: string, data?: string) => Promise<string>
+  fetchTokenBalance: (tokenAddress: string, walletAddress: string, chainId: number) => Promise<string>
+  detectChainId: () => Promise<number>
   metaMaskSDK: typeof metaMaskSDK
   circleWallets: typeof circleWallets
   // Backward compatibility
   connect: () => Promise<void>
   disconnect: () => Promise<void>
   address: string | null
+  account: string | null
   chainId: number | null
   isConnected: boolean
   isDemoMode: boolean
+  isDummy: boolean
   balance: number
 }
 
@@ -48,15 +53,12 @@ export function WalletProvider({ children }: WalletProviderProps) {
     provider: null,
   })
 
-  // Check if MetaMask is available (fallback compatibility)
-  const isMetaMaskAvailable = () => {
-    return typeof window !== "undefined" && window.ethereum && window.ethereum.isMetaMask
-  }
-
-  // Initialize SDKs and set demo mode if needed
+  // Initialize SDKs
   useEffect(() => {
     const initializeSDKs = async () => {
       try {
+        console.log('🔄 Initializing SDKs...')
+        
         // Initialize MetaMask SDK
         await metaMaskSDK.initialize()
         console.log('✅ MetaMask SDK initialized')
@@ -65,74 +67,83 @@ export function WalletProvider({ children }: WalletProviderProps) {
         await circleWallets.initialize()
         console.log('✅ Circle Wallets SDK initialized')
         
-        // Check if MetaMask is connected
-        if (metaMaskSDK.isConnected()) {
-          await checkMetaMaskConnection()
-        } else if (!isMetaMaskAvailable()) {
-          // Fallback to demo mode
-          setWalletState({
-            address: "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b7",
-            chainId: 1, // Ethereum mainnet for demo
-            isConnected: true,
-            isDemo: true,
-            balance: "1.5",
-            provider: 'demo',
-          })
-          
-          toast({
-            title: "Demo Mode Active",
-            description: "MetaMask not detected. Using demo wallet.",
-          })
-        }
       } catch (error) {
         console.error('❌ SDK initialization failed:', error)
-        
-        // Fallback to demo mode on error
-        setWalletState({
-          address: "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b7",
-          chainId: 1,
-          isConnected: true,
-          isDemo: true,
-          balance: "1.5",
-          provider: 'demo',
-        })
       }
     }
 
     initializeSDKs()
   }, [])
 
-  const checkMetaMaskConnection = async () => {
+  const fetchTokenBalance = async (
+    tokenAddress: string, 
+    walletAddress: string, 
+    chainId: number
+  ): Promise<string> => {
     try {
-      const accounts = await metaMaskSDK.getAccounts()
-      if (accounts.length > 0) {
-        const balance = await metaMaskSDK.getBalance(accounts[0])
+      if (!metaMaskSDK.isConnected()) {
+        return "0"
+      }
+
+      const provider = await metaMaskSDK.getProvider()
+      
+      if (tokenAddress === "0x0000000000000000000000000000000000000000") {
+        // Native token (ETH, MATIC, etc.)
+        const balance = await provider.getBalance(walletAddress)
+        return (parseFloat(balance.toString()) / 10 ** 18).toFixed(6)
+      } else {
+        // ERC-20 token
+        const tokenContract = new ethers.Contract(
+          tokenAddress,
+          [
+            "function balanceOf(address) view returns (uint256)",
+            "function decimals() view returns (uint8)"
+          ],
+          provider
+        )
         
-        setWalletState({
-          address: accounts[0],
-          chainId: 1, // Will be updated by chain detection
-          isConnected: true,
-          isDemo: false,
-          balance: (parseFloat(balance) / 10 ** 18).toFixed(4),
-          provider: 'metamask',
-        })
+        const [balance, decimals] = await Promise.all([
+          tokenContract.balanceOf(walletAddress),
+          tokenContract.decimals()
+        ])
+        
+        return (parseFloat(balance.toString()) / (10 ** Number(decimals))).toFixed(6)
       }
     } catch (error) {
-      console.error("Failed to check MetaMask connection:", error)
+      console.error(`Error fetching balance for ${tokenAddress}:`, error)
+      return "0"
+    }
+  }
+
+  const detectChainId = async (): Promise<number> => {
+    try {
+      if (!metaMaskSDK.isConnected()) {
+        return 11155111 // Default to Sepolia
+      }
+
+      const provider = await metaMaskSDK.getProvider()
+      const network = await provider.getNetwork()
+      return Number(network.chainId)
+    } catch (error) {
+      console.error("Failed to detect chain ID:", error)
+      return 11155111
     }
   }
 
   const connectWallet = async (provider: 'metamask' | 'circle' = 'metamask') => {
     try {
       if (provider === 'metamask') {
+        console.log('🔗 Connecting to MetaMask...')
+        
         const accounts = await metaMaskSDK.connect()
         
         if (accounts.length > 0) {
+          const chainId = await detectChainId()
           const balance = await metaMaskSDK.getBalance(accounts[0].address)
           
           setWalletState({
             address: accounts[0].address,
-            chainId: 1, // Will be updated by chain detection
+            chainId: chainId,
             isConnected: true,
             isDemo: false,
             balance: (parseFloat(balance) / 10 ** 18).toFixed(4),
@@ -141,11 +152,11 @@ export function WalletProvider({ children }: WalletProviderProps) {
 
           toast({
             title: "✅ MetaMask Connected",
-            description: "Successfully connected to MetaMask SDK",
+            description: `Connected to ${accounts[0].address.slice(0, 6)}...${accounts[0].address.slice(-4)}`,
           })
         }
       } else if (provider === 'circle') {
-        // For Circle Wallets, we need user authentication first
+        // Circle Wallets connection
         const demoUserToken = 'demo_user_token'
         const demoEncryptionKey = 'demo_encryption_key'
         
@@ -159,7 +170,7 @@ export function WalletProvider({ children }: WalletProviderProps) {
           
           setWalletState({
             address: wallet.address,
-            chainId: 1,
+            chainId: 11155111,
             isConnected: true,
             isDemo: false,
             balance: balance,
@@ -171,12 +182,11 @@ export function WalletProvider({ children }: WalletProviderProps) {
             description: "Successfully connected to Circle Programmable Wallet",
           })
         } else {
-          // Create new wallet if none exists
           const newWallet = await circleWallets.createUserWallet("OmniPay Wallet")
           
           setWalletState({
             address: newWallet.address,
-            chainId: 1,
+            chainId: 11155111,
             isConnected: true,
             isDemo: false,
             balance: "0",
@@ -194,18 +204,8 @@ export function WalletProvider({ children }: WalletProviderProps) {
       
       toast({
         title: "❌ Connection Failed",
-        description: `Could not connect to ${provider}. Using demo mode.`,
+        description: `Could not connect to ${provider}. Please try again.`,
         variant: "destructive",
-      })
-      
-      // Fallback to demo mode
-      setWalletState({
-        address: "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b7",
-        chainId: 1,
-        isConnected: true,
-        isDemo: true,
-        balance: "1.5",
-        provider: 'demo',
       })
     }
   }
@@ -230,48 +230,39 @@ export function WalletProvider({ children }: WalletProviderProps) {
         description: "Successfully disconnected from wallet",
       })
     } catch (error) {
-      console.error("Failed to disconnect:", error)
+      console.error("Failed to disconnect wallet:", error)
     }
   }
 
   const switchChain = async (chainId: string) => {
-    if (walletState.isDemo) {
-      // In demo mode, just update the state
-      setWalletState((prev) => ({ ...prev, chainId: parseInt(chainId) }))
-      return
-    }
-
     try {
       if (walletState.provider === 'metamask') {
         await metaMaskSDK.switchChain(chainId)
-        setWalletState((prev) => ({ ...prev, chainId: parseInt(chainId) }))
         
+        // Update state with new chain
+        const newChainId = parseInt(chainId, 16)
+        setWalletState(prev => ({
+          ...prev,
+          chainId: newChainId
+        }))
+
         toast({
-          title: "✅ Chain Switched",
-          description: `Switched to chain ${chainId}`,
+          title: "✅ Network Switched",
+          description: `Switched to chain ${newChainId}`,
         })
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error("Failed to switch chain:", error)
       
       toast({
-        title: "❌ Chain Switch Failed",
-        description: error.message || "Failed to switch chain",
+        title: "❌ Network Switch Failed",
+        description: "Could not switch network. Please try manually.",
         variant: "destructive",
       })
     }
   }
 
   const sendTransaction = async (to: string, value: string, data?: string) => {
-    if (walletState.isDemo) {
-      // Simulate transaction in demo mode
-      return `0x${Math.random().toString(16).substr(2, 64)}`
-    }
-
-    if (!walletState.address) {
-      throw new Error("Wallet not connected")
-    }
-
     try {
       if (walletState.provider === 'metamask') {
         const txHash = await metaMaskSDK.sendTransaction({
@@ -279,50 +270,77 @@ export function WalletProvider({ children }: WalletProviderProps) {
           value,
           data,
         })
+
+        toast({
+          title: "✅ Transaction Sent",
+          description: `Transaction: ${txHash.slice(0, 10)}...`,
+        })
+
         return txHash
       } else if (walletState.provider === 'circle') {
-        // For Circle Wallets, we need to find the wallet ID first
+        // Circle transaction logic
         const wallets = await circleWallets.getUserWallets()
-        if (wallets.length > 0) {
-          const transaction = await circleWallets.transferTokens({
-            walletId: wallets[0].id,
-            destinationAddress: to,
-            amount: value,
-          })
-          return transaction.txHash || transaction.id
+        if (wallets.length === 0) {
+          throw new Error('No Circle wallet found')
         }
+        
+        const transaction = await circleWallets.transferTokens({
+          walletId: wallets[0].id,
+          destinationAddress: to,
+          amount: value,
+        })
+        
+        const txHash = transaction.txHash || transaction.id
+        
+        toast({
+          title: "✅ Transaction Sent",
+          description: `Transaction: ${txHash.slice(0, 10)}...`,
+        })
+
+        return txHash
       }
       
-      throw new Error("No supported wallet provider")
-    } catch (error) {
+      throw new Error('No wallet connected')
+    } catch (error: any) {
       console.error("Transaction failed:", error)
+      
+      toast({
+        title: "❌ Transaction Failed",
+        description: error.message || "Transaction could not be sent",
+        variant: "destructive",
+      })
+      
       throw error
     }
   }
 
-  // Backward compatibility wrappers
+  // Backward compatibility
   const connect = () => connectWallet('metamask')
   const disconnect = async () => { disconnectWallet() }
 
-  const value = {
+  const contextValue: WalletContextType = {
     walletState,
     connectWallet,
     disconnectWallet,
     switchChain,
     sendTransaction,
+    fetchTokenBalance,
+    detectChainId,
     metaMaskSDK,
     circleWallets,
     // Backward compatibility
     connect,
     disconnect,
     address: walletState.address,
+    account: walletState.address,
     chainId: walletState.chainId,
     isConnected: walletState.isConnected,
     isDemoMode: walletState.isDemo,
+    isDummy: false,
     balance: parseFloat(walletState.balance),
   }
 
-  return <WalletContext.Provider value={value}>{children}</WalletContext.Provider>
+  return <WalletContext.Provider value={contextValue}>{children}</WalletContext.Provider>
 }
 
 export function useWallet() {
@@ -333,7 +351,7 @@ export function useWallet() {
   return context
 }
 
-// TypeScript declarations for window.ethereum (fallback)
+// Global window type for MetaMask
 declare global {
   interface Window {
     ethereum?: {
