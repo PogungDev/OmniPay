@@ -4,16 +4,20 @@ import { ethers } from "ethers"
 export const CONTRACT_ADDRESSES = {
   // Sepolia testnet addresses
   11155111: {
-    OMNIPAY_CORE: "0x0000000000000000000000000000000000000000", // Replace with deployed address
-    OMNIPAY_TREASURY: "0x0000000000000000000000000000000000000000", // Replace with deployed address
-    OMNIPAY_REMITTANCE: "0x0000000000000000000000000000000000000000", // Replace with deployed address
-    OMNIPAY_PAYOUT: "0x0000000000000000000000000000000000000000", // Replace with deployed address
-    OMNIPAY_TRACKER: "0x0000000000000000000000000000000000000000", // Replace with deployed address
-    OMNIPAY_HISTORY: "0x0000000000000000000000000000000000000000", // Replace with deployed address
+    OMNIPAY_CORE: process.env.NEXT_PUBLIC_OMNIPAY_CORE || "0x0000000000000000000000000000000000000000",
+    OMNIPAY_CCTP: process.env.NEXT_PUBLIC_OMNIPAY_CCTP || "0x0000000000000000000000000000000000000000",
+    OMNIPAY_CARD: process.env.NEXT_PUBLIC_OMNIPAY_CARD || "0x0000000000000000000000000000000000000000",
+    OMNIPAY_TREASURY: process.env.NEXT_PUBLIC_OMNIPAY_TREASURY || "0x0000000000000000000000000000000000000000",
+    OMNIPAY_REMITTANCE: process.env.NEXT_PUBLIC_OMNIPAY_REMITTANCE || "0x0000000000000000000000000000000000000000",
+    OMNIPAY_PAYOUT: process.env.NEXT_PUBLIC_OMNIPAY_PAYOUT || "0x0000000000000000000000000000000000000000",
+    OMNIPAY_TRACKER: process.env.NEXT_PUBLIC_OMNIPAY_TRACKER || "0x0000000000000000000000000000000000000000",
+    OMNIPAY_HISTORY: process.env.NEXT_PUBLIC_OMNIPAY_HISTORY || "0x0000000000000000000000000000000000000000",
   },
   // Arbitrum
   42161: {
     OMNIPAY_CORE: "0x0000000000000000000000000000000000000000",
+    OMNIPAY_CCTP: "0x0000000000000000000000000000000000000000",
+    OMNIPAY_CARD: "0x0000000000000000000000000000000000000000",
     OMNIPAY_TREASURY: "0x0000000000000000000000000000000000000000",
     OMNIPAY_REMITTANCE: "0x0000000000000000000000000000000000000000",
     OMNIPAY_PAYOUT: "0x0000000000000000000000000000000000000000",
@@ -23,11 +27,24 @@ export const CONTRACT_ADDRESSES = {
   // Polygon
   137: {
     OMNIPAY_CORE: "0x0000000000000000000000000000000000000000",
+    OMNIPAY_CCTP: "0x0000000000000000000000000000000000000000",
+    OMNIPAY_CARD: "0x0000000000000000000000000000000000000000",
     OMNIPAY_TREASURY: "0x0000000000000000000000000000000000000000",
     OMNIPAY_REMITTANCE: "0x0000000000000000000000000000000000000000",
     OMNIPAY_PAYOUT: "0x0000000000000000000000000000000000000000",
     OMNIPAY_TRACKER: "0x0000000000000000000000000000000000000000",
     OMNIPAY_HISTORY: "0x0000000000000000000000000000000000000000",
+  },
+  // Arbitrum Sepolia
+  421614: {
+    OMNIPAY_CORE: process.env.NEXT_PUBLIC_OMNIPAY_CORE || "0x0000000000000000000000000000000000000000",
+    OMNIPAY_CCTP: process.env.NEXT_PUBLIC_OMNIPAY_CCTP || "0x0000000000000000000000000000000000000000",
+    OMNIPAY_CARD: process.env.NEXT_PUBLIC_OMNIPAY_CARD || "0x0000000000000000000000000000000000000000",
+    OMNIPAY_TREASURY: process.env.NEXT_PUBLIC_OMNIPAY_TREASURY || "0x0000000000000000000000000000000000000000",
+    OMNIPAY_REMITTANCE: process.env.NEXT_PUBLIC_OMNIPAY_REMITTANCE || "0x0000000000000000000000000000000000000000",
+    OMNIPAY_PAYOUT: process.env.NEXT_PUBLIC_OMNIPAY_PAYOUT || "0x0000000000000000000000000000000000000000",
+    OMNIPAY_TRACKER: process.env.NEXT_PUBLIC_OMNIPAY_TRACKER || "0x0000000000000000000000000000000000000000",
+    OMNIPAY_HISTORY: process.env.NEXT_PUBLIC_OMNIPAY_HISTORY || "0x0000000000000000000000000000000000000000",
   },
 }
 
@@ -118,6 +135,31 @@ export const OMNIPAY_HISTORY_ABI = [
   "event TransactionUpdated(bytes32 indexed txId, string newStatus)",
 ]
 
+export const OMNIPAY_CCTP_ABI = [
+  "function initiateCCTPTransfer(address _recipient, uint256 _amount, uint256 _destinationChainId) external returns (bytes32)",
+  "function completeTransfer(bytes32 _transferId, bytes calldata _attestation) external",
+  "function updateTransferStatus(bytes32 _transferId, uint8 _status, uint64 _nonce, bytes32 _burnTxHash) external",
+  "function getTransfer(bytes32 _transferId) external view returns (tuple(bytes32 transferId, address sender, address recipient, uint256 amount, uint32 destinationDomain, uint32 sourceDomain, uint64 nonce, bytes32 burnTxHash, bytes32 attestation, uint8 status, uint256 timestamp))",
+  "function getUserTransfers(address _user) external view returns (bytes32[] memory)",
+  "function getChainConfig(uint256 _chainId) external view returns (tuple(uint32 domain, address tokenMessenger, address messageTransmitter, address usdcToken, bool isActive))",
+  "event TransferInitiated(bytes32 indexed transferId, address indexed sender, address indexed recipient, uint256 amount, uint32 destinationDomain)",
+  "event TransferCompleted(bytes32 indexed transferId, bytes32 attestation)"
+];
+
+export const OMNIPAY_CARD_ABI = [
+  "function createCard(string memory _cardId) external",
+  "function addCreditLine(address _collateralToken, uint256 _collateralAmount, uint256 _interestRate) external",
+  "function setAutoRepay(address _sourceToken, uint256 _sourceChain, uint256 _repayAmount, uint256 _frequency) external",
+  "function makePayment(uint256 _amount, string memory _merchantId) external",
+  "function repayCredit(uint256 _amount, address _token) external",
+  "function executeAutoRepay(address _user) external",
+  "function cardProfiles(address) external view returns (tuple(address owner, uint256 creditLimit, uint256 currentBalance, uint256 availableCredit, bool isActive, uint256 createdAt, string cardId))",
+  "function crossChainBalances(address, uint256) external view returns (uint256)",
+  "event CardCreated(address indexed user, string cardId, uint256 creditLimit)",
+  "event CreditLineAdded(address indexed user, address token, uint256 amount)",
+  "event PaymentMade(address indexed user, uint256 amount, string merchantId)"
+];
+
 // Helper functions to get contract instances
 export function getOmniPayCore(provider: ethers.Provider, chainId: number) {
   const address = CONTRACT_ADDRESSES[chainId as keyof typeof CONTRACT_ADDRESSES]?.OMNIPAY_CORE
@@ -175,3 +217,32 @@ export function getOmniPayTracker(provider: ethers.Provider, chainId: number) {
     provider,
   )
 }
+
+// Helper function to get contract address for current chain
+export function getContractAddress(chainId: number, contractName: keyof typeof CONTRACT_ADDRESSES[11155111]): string {
+  const addresses = CONTRACT_ADDRESSES[chainId as keyof typeof CONTRACT_ADDRESSES];
+  if (!addresses) {
+    throw new Error(`Unsupported chain ID: ${chainId}`);
+  }
+  return addresses[contractName];
+}
+
+// Helper function to check if contracts are deployed
+export function areContractsDeployed(chainId: number): boolean {
+  try {
+    const coreAddress = getContractAddress(chainId, 'OMNIPAY_CORE');
+    return coreAddress !== "0x0000000000000000000000000000000000000000";
+  } catch {
+    return false;
+  }
+}
+
+// USDC Token addresses for different chains
+export const USDC_ADDRESSES = {
+  1: "0xA0b86a33E6441b8dB4B2b8b8b8b8b8b8b8b8b8b8", // Ethereum mainnet
+  11155111: "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238", // Sepolia testnet
+  137: "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359", // Polygon
+  42161: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831", // Arbitrum
+  421614: "0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d", // Arbitrum Sepolia
+  8453: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", // Base
+};
