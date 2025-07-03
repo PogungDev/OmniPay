@@ -1,7 +1,7 @@
 // Circle Wallets SDK Integration with fallback for build safety
 let W3SSdk: any;
 try {
-  W3SSdk = require('@circle-fin/w3s-pw-sdk').W3SSdk;
+  W3SSdk = require('@circle-fin/w3s-pw-web-sdk').W3SSdk;
 } catch (error) {
   console.warn('Circle Wallets SDK not installed, using mock');
   W3SSdk = class MockW3SSdk {
@@ -307,11 +307,12 @@ class OmniPayCircleWallets {
   }
 }
 
-// Create singleton instance
+// Create singleton instance with proper environment configuration
 export const circleWallets = new OmniPayCircleWallets({
-  appId: process.env.NEXT_PUBLIC_CIRCLE_APP_ID || '',
-  apiKey: process.env.NEXT_PUBLIC_CIRCLE_API_KEY || '',
-  environment: process.env.NODE_ENV === 'production' ? 'production' : 'sandbox',
+  appId: process.env.NEXT_PUBLIC_CIRCLE_APP_ID || 'demo-app-id',
+  apiKey: process.env.CIRCLE_API_KEY || 'demo-api-key',
+  baseUrl: process.env.CIRCLE_BASE_URL || 'https://api.circle.com/v1/w3s',
+  environment: (process.env.NEXT_PUBLIC_CIRCLE_ENVIRONMENT as 'sandbox' | 'production') || 'sandbox',
 })
 
 export default OmniPayCircleWallets 

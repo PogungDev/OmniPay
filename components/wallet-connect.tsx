@@ -30,7 +30,7 @@ export function WalletConnect() {
       console.error("Failed to connect wallet:", error)
       toast({
         title: "Connection Failed",
-        description: "Could not connect to MetaMask. Using demo mode.",
+        description: "Could not connect to MetaMask. Please make sure it's installed and try again.",
         variant: "destructive",
       })
     } finally {

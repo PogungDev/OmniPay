@@ -65,36 +65,18 @@ export function WalletProvider({ children }: WalletProviderProps) {
         await circleWallets.initialize()
         console.log('✅ Circle Wallets SDK initialized')
         
-        // Check if MetaMask is connected
+        // Check if MetaMask is already connected
         if (metaMaskSDK.isConnected()) {
           await checkMetaMaskConnection()
-        } else if (!isMetaMaskAvailable()) {
-          // Fallback to demo mode
-          setWalletState({
-            address: "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b7",
-            chainId: 1, // Ethereum mainnet for demo
-            isConnected: true,
-            isDemo: true,
-            balance: "1.5",
-            provider: 'demo',
-          })
-          
-          toast({
-            title: "Demo Mode Active",
-            description: "MetaMask not detected. Using demo wallet.",
-          })
         }
+        // No automatic demo mode fallback - user will need to manually connect
       } catch (error) {
         console.error('❌ SDK initialization failed:', error)
-        
-        // Fallback to demo mode on error
-        setWalletState({
-          address: "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b7",
-          chainId: 1,
-          isConnected: true,
-          isDemo: true,
-          balance: "1.5",
-          provider: 'demo',
+        // Don't fallback to demo mode automatically
+        toast({
+          title: "⚠️ Initialization Failed",
+          description: "Please refresh the page and connect your wallet.",
+          variant: "destructive",
         })
       }
     }
@@ -194,19 +176,12 @@ export function WalletProvider({ children }: WalletProviderProps) {
       
       toast({
         title: "❌ Connection Failed",
-        description: `Could not connect to ${provider}. Using demo mode.`,
+        description: `Could not connect to ${provider}. Please make sure MetaMask is installed and try again.`,
         variant: "destructive",
       })
       
-      // Fallback to demo mode
-      setWalletState({
-        address: "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b7",
-        chainId: 1,
-        isConnected: true,
-        isDemo: true,
-        balance: "1.5",
-        provider: 'demo',
-      })
+      // Don't fallback to demo mode - throw the error so user knows what happened
+      throw error
     }
   }
 

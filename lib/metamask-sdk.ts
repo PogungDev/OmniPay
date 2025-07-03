@@ -1,4 +1,4 @@
-import { MetaMaskSDK } from '@metamask/sdk'
+import { MetaMaskSDK as MetaMaskSDKClass } from '@metamask/sdk'
 import { BrowserProvider } from 'ethers'
 
 export interface MetaMaskSDKOptions {
@@ -27,19 +27,21 @@ try {
   console.warn('MetaMask SDK not installed, using mock');
   MetaMaskSDK = class MockMetaMaskSDK {
     constructor() {}
-    init() { return Promise.resolve(); }
-    connect() { return Promise.resolve([]); }
-    getAccounts() { return Promise.resolve([]); }
-    sendTransaction() { return Promise.resolve('0x123'); }
-    switchChain() { return Promise.resolve(); }
-    disconnect() { return Promise.resolve(); }
-    isConnected() { return false; }
-    getBalance() { return Promise.resolve('1000000000000000000'); }
+    init(): Promise<void> { return Promise.resolve(); }
+    connect(): Promise<any[]> { return Promise.resolve([]); }
+    getAccounts(): Promise<any[]> { return Promise.resolve([]); }
+    sendTransaction(): Promise<string> { return Promise.resolve('0x123'); }
+    switchChain(): Promise<void> { return Promise.resolve(); }
+    disconnect(): Promise<void> { return Promise.resolve(); }
+    isConnected(): boolean { return false; }
+    getBalance(address: string): Promise<string> { return Promise.resolve('1000000000000000000'); }
+    getProvider(): any { return {}; }
+    terminate(): Promise<void> { return Promise.resolve(); }
   };
 }
 
 class OmniPayMetaMaskSDK {
-  private sdk: MetaMaskSDK | null = null
+  private sdk: any = null
   private provider: BrowserProvider | null = null
   private initialized = false
 
@@ -114,7 +116,10 @@ class OmniPayMetaMaskSDK {
 
     if (!this.provider) {
       const ethereum = this.sdk.getProvider()
-      this.provider = new BrowserProvider(ethereum)
+      if (!ethereum) {
+        throw new Error('No provider available from MetaMask SDK')
+      }
+      this.provider = new BrowserProvider(ethereum as any)
     }
 
     return this.provider
@@ -153,6 +158,10 @@ class OmniPayMetaMaskSDK {
 
     try {
       const ethereum = this.sdk.getProvider()
+      if (!ethereum) {
+        throw new Error('No provider available')
+      }
+      
       await ethereum.request({
         method: 'wallet_switchEthereumChain',
         params: [{ chainId }],
@@ -240,6 +249,10 @@ class OmniPayMetaMaskSDK {
 
     try {
       const ethereum = this.sdk.getProvider()
+      if (!ethereum) {
+        throw new Error('No provider available')
+      }
+      
       await ethereum.request({
         method: 'wallet_addEthereumChain',
         params: [chainConfig],
@@ -292,10 +305,32 @@ class OmniPayMetaMaskSDK {
   }
 
   isConnected(): boolean {
-    return this.sdk?.isConnected() ?? false
+    try {
+      // Check if SDK is initialized and has a provider
+      if (!this.sdk) {
+        return false
+      }
+      
+      // Get the ethereum provider and check if it's connected
+      const ethereum = this.sdk.getProvider()
+      if (!ethereum) {
+        return false
+      }
+      
+      // Check if ethereum has isConnected method and call it
+      if (typeof ethereum.isConnected === 'function') {
+        return Boolean(ethereum.isConnected())
+      }
+      
+      // Fallback: check if we have accounts (indicates connection)
+      return Boolean(ethereum.selectedAddress)
+    } catch (error) {
+      console.log('Unable to check connection status:', error)
+      return false
+    }
   }
 
-  getSDK(): MetaMaskSDK | null {
+  getSDK(): MetaMaskSDKClass | null {
     return this.sdk
   }
 }
